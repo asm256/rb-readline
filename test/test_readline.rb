@@ -30,6 +30,13 @@ class TestReadline < Minitest::Test
     assert_equal true, status.success?
   end
 
+  def test_readline_does_not_shell_out_to_stty_when_input_not_attached_to_a_terminal
+    stdout, status = Open3.capture2e("ruby -Ilib -rreadline -e \"Readline.readline('[prompt] ')\"", stdin_data: 'ls')
+
+    refute_includes stdout, 'Inappropriate ioctl for device'
+    assert_equal true, status.success?
+  end
+
   def test_input_basic
     assert_respond_to(Readline, :input=)
   end

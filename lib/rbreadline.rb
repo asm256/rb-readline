@@ -1858,12 +1858,14 @@ module RbReadline
       @_rl_screenwidth = wc
       @_rl_screenheight = wr
     else
-      wr, wc = 0
-      retry_if_interrupted do
-        wr, wc = `stty size`.split(' ').map { |x| x.to_i }
+      unless no_terminal?
+        wr, wc = 0
+        retry_if_interrupted do
+          wr, wc = `stty size`.split(' ').map { |x| x.to_i }
+        end
+        @_rl_screenwidth = wc
+        @_rl_screenheight = wr
       end
-      @_rl_screenwidth = wc
-      @_rl_screenheight = wr
       if ignore_env==0 && ENV['LINES']
         @_rl_screenheight = ENV['LINES'].to_i
       end
@@ -1976,9 +1978,7 @@ module RbReadline
 
     buffer = @term_string_buffer
 
-    tgetent_ret = (term != "dumb") ? 1 : -1
-
-    if (tgetent_ret <= 0)
+    if no_terminal?
       buffer = @term_buffer = @term_string_buffer = nil
 
       @_rl_term_autowrap = false    # used by _rl_get_screen_size
@@ -7031,7 +7031,6 @@ module RbReadline
 
   def rl_prep_terminal(meta_flag)
     return if no_terminal?
-
     return if (@terminal_prepped)
 
     # Try to keep this function from being INTerrupted.
@@ -7050,6 +7049,7 @@ module RbReadline
     save_tty_chars()
 
     rl_setstate(RL_STATE_TTYCSAVED)
+
     if (@_rl_bind_stty_chars)
 
       # If editing in vi mode, make sure we set the bindings in the
@@ -7075,7 +7075,7 @@ module RbReadline
 
   # Restore the terminal's normal settings and modes.
   def rl_deprep_terminal()
-    return if ENV["TERM"].nil?
+    return if no_terminal?
     return if (!@terminal_prepped)
 
     # Try to keep this function from being interrupted.
@@ -8867,9 +8867,11 @@ module RbReadline
   end
 
   def rl_sigwinch_handler(sig)
-    rl_setstate(RL_STATE_SIGHANDLER)
-    rl_resize_terminal()
-    rl_unsetstate(RL_STATE_SIGHANDLER)
+    unless no_terminal?
+      rl_setstate(RL_STATE_SIGHANDLER)
+      rl_resize_terminal()
+      rl_unsetstate(RL_STATE_SIGHANDLER)
+    end
   end
 
 
@@ -8889,7 +8891,7 @@ module RbReadline
 
   def no_terminal?
     term = ENV["TERM"]
-    term.nil? || (term == 'dumb') || (RUBY_PLATFORM =~ /mswin|mingw/)
+    term.nil? || (term == 'dumb') || (RUBY_PLATFORM =~ /mswin|mingw/) || !rl_instream.respond_to?(:stty?) || !rl_instream.stty?
   end
   private :no_terminal?
 
